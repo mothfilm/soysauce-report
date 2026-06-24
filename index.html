@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Соевый соус — анализ категории</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    /* Светлый визуальный язык (phase2 §D): единые токены темы. */
+    :root {
+      --bg: #f7f8fa;
+      --card: #fff;
+      --line: #eef0f3;
+      --ink: #0f172a;
+      --muted: #94a3b8;
+      --accent: #10b981;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.55; color: var(--ink);
+      max-width: 1240px; margin: 0 auto; padding: 32px 28px;
+      background: var(--bg);
+    }
+    /* Липкая навигация по секциям (phase2 §D) */
+    .section-nav {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin: 16px 0 24px; padding: 10px 12px;
+      background: rgba(247,248,250,0.92); backdrop-filter: blur(6px);
+      border: 1px solid var(--line); border-radius: var(--radius);
+    }
+    .section-nav a {
+      font-size: 13px; color: var(--ink); text-decoration: none;
+      padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+      background: var(--card);
+    }
+    .section-nav a:hover { border-color: var(--accent); color: var(--accent); }
+    h1 { font-size: 34px; margin: 0 0 4px; letter-spacing: -0.01em; }
+    /* offset для якорей под липкой навигацией */
+    h2[id], [id="kpi"] { scroll-margin-top: 64px; }
+    h2 {
+      font-size: 22px; margin: 56px 0 16px;
+      padding-bottom: 10px; border-bottom: 2px solid #e5e7eb;
+      letter-spacing: -0.01em;
+    }
+    h3 { font-size: 17px; margin-top: 28px; color: #374151; }
+    h4 { font-size: 15px; margin: 18px 0 8px; color: #1f2937; }
+    .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 24px; }
+
+    /* TL;DR блок с вердиктом */
+    .tldr {
+      background: #eff6ff; border-left: 4px solid #2563eb;
+      padding: 20px 24px; border-radius: 6px; margin: 20px 0;
+    }
+    .tldr.warning { background: #fffbeb; border-left-color: #f59e0b; }
+    .tldr.danger  { background: #fef2f2; border-left-color: #dc2626; }
+    .tldr.ok      { background: #ecfdf5; border-left-color: #10b981; }
+    .verdict { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+
+    /* KPI-дашборд — верхняя шапка */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px; margin: 24px 0 32px;
+    }
+    .kpi {
+      background: white; border: 1px solid #e5e7eb;
+      border-radius: 8px; padding: 14px 16px;
+      position: relative; overflow: hidden;
+    }
+    .kpi .label {
+      font-size: 11px; color: #6b7280;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .kpi .value {
+      font-size: 26px; font-weight: 700; color: #111827;
+      font-variant-numeric: tabular-nums; line-height: 1.1;
+    }
+    .kpi .unit { font-size: 14px; font-weight: 500; color: #6b7280; margin-left: 2px; }
+    .kpi .sub { font-size: 11px; color: #6b7280; margin-top: 4px; min-height: 14px; }
+    .kpi.good   { border-left: 3px solid #10b981; }
+    .kpi.warn   { border-left: 3px solid #f59e0b; }
+    .kpi.danger { border-left: 3px solid #dc2626; }
+    .kpi.good .value   { color: #059669; }
+    .kpi.warn .value   { color: #d97706; }
+    .kpi.danger .value { color: #b91c1c; }
+
+    /* Таблицы */
+    table {
+      width: 100%; border-collapse: collapse;
+      margin: 12px 0; background: white; font-size: 13px;
+      border-radius: 6px; overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #f1f2f4; }
+    th {
+      background: #f9fafb; font-weight: 600; cursor: pointer;
+      user-select: none; color: #374151; white-space: nowrap;
+    }
+    th:hover { background: #f1f2f4; }
+    /* Индикаторы сортировки */
+    th::after {
+      content: " ⇅"; color: #cbd5e1; font-size: 11px; font-weight: 400;
+      margin-left: 2px; transition: color 0.15s;
+    }
+    th:hover::after { color: #64748b; }
+    th.sort-asc::after  { content: " ▲"; color: #2563eb; font-size: 10px; }
+    th.sort-desc::after { content: " ▼"; color: #2563eb; font-size: 10px; }
+    /* Колонки, которые не имеет смысла сортировать */
+    th.no-sort { cursor: default; }
+    th.no-sort::after { content: ""; }
+    th.no-sort:hover { background: #f9fafb; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.newbie { background: #ecfdf5; }
+
+    /* Бейджи и source-теги */
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge.new  { background: #10b981; color: white; }
+    .badge.warn { background: #f59e0b; color: white; }
+    .badge.info { background: #3b82f6; color: white; }
+    .source-tag {
+      font-size: 10px; color: #9ca3af;
+      text-transform: uppercase; margin-left: 4px;
+    }
+    .source-tag.data   { color: #059669; }
+    .source-tag.calc   { color: #2563eb; }
+    .source-tag.hyp    { color: #d97706; }
+    .source-tag.expert { color: #7c3aed; }
+    .source-tag.default { color: #6b7280; }
+
+    /* Графики и карточки */
+    .chart-wrap {
+      background: white; border-radius: 8px;
+      padding: 12px 16px 16px; margin: 16px 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .chart-title {
+      font-size: 14px; font-weight: 600; color: #111827;
+      margin: 0 0 8px; padding-right: 120px; /* место под modebar */
+    }
+    .chart {
+      background: white; border-radius: 8px;
+      min-height: 320px;
+    }
+    /* Standalone .chart (без wrap) — legacy */
+    .chart:not(.chart-wrap .chart) {
+      padding: 16px; margin: 16px 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      min-height: 360px;
+    }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img.thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; }
+
+    .kv { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #f1f2f4; }
+    .kv:last-child { border-bottom: none; }
+    .kv .k { color: #6b7280; font-size: 13px; }
+    .kv .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .kv .v.pos { color: #059669; }
+    .kv .v.neg { color: #dc2626; }
+
+    /* Сегменты фасовок — плитка */
+    .segments-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px; margin: 12px 0;
+    }
+    .segment-card {
+      background: white; border: 1px solid #e5e7eb;
+      border-radius: 8px; padding: 12px 14px;
+    }
+    .segment-card.best {
+      border-color: #10b981; background: #f0fdf4;
+      border-width: 2px;
+    }
+    .segment-card .seg-name {
+      font-size: 12px; text-transform: uppercase;
+      color: #6b7280; letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .segment-card .seg-range { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+    .segment-card .seg-metric { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+    .segment-card .seg-metric .mk { color: #6b7280; }
+    .segment-card .seg-metric .mv { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .footer {
+      margin-top: 64px; padding-top: 24px;
+      border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;
+    }
+    .footer ul { padding-left: 20px; }
+
+    /* Dynamics секция */
+    .dynamics-grid { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
+    .dynamics-block { flex: 1; min-width: 360px; }
+    .dynamics-block table { width: 100%; }
+    .delta-good { color: #166534; font-weight: 600; }
+    .delta-bad  { color: #991b1b; font-weight: 600; }
+    .interpretation { font-size: 13px; color: #4b5563; margin-top: 8px; font-style: italic; }
+
+    /* Alert плашки честности — мягкие фоны под светлую тему */
+    .alert-info    { padding: 10px 14px; border-radius: var(--radius); background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .alert-warning { padding: 10px 14px; border-radius: var(--radius); background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .alert-danger  { padding: 10px 14px; border-radius: var(--radius); background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+    /* ⭐ Commentary blocks — under each HTML section */
+    .commentary {
+      background: #f8fafc; border-left: 3px solid #94a3b8;
+      padding: 12px 16px; margin: 16px 0 24px;
+      font-style: italic; color: #475569; font-size: 14px;
+    }
+    .commentary::before { content: "🧠 "; font-style: normal; }
+    .commentary p { margin: 6px 0; }
+    .commentary:empty { display: none; }
+
+    /* ⭐ VoC tiles — 3 плитки в блоке Голос покупателя */
+    .voc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0; }
+    .voc-tile { background: white; padding: 16px; border-radius: 6px; border: 1px solid #e2e8f0; }
+    .voc-tile h4 { margin: 0 0 8px; font-size: 14px; }
+    .voc-tile ul { margin: 0; padding-left: 18px; font-size: 13px; }
+    .voc-tile li { margin-bottom: 4px; }
+    @media (max-width: 768px) { .voc-grid { grid-template-columns: 1fr; } }
+
+    /* ⭐ Segment cards — обогащённая фасовка */
+    .seg-label { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+    .seg-stats .kv { padding: 4px 0; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; }
+    .seg-stats .kv:last-child { border-bottom: none; }
+    .seg-stats .k { color: #666; font-size: 12px; }
+    .seg-stats .v { font-weight: 600; font-size: 13px; }
+    .seg-badge { margin-top: 8px; color: #10b981; font-size: 12px; font-weight: 600; }
+
+    /* ⭐ Юнит-экономика — две вьюхи + калькулятор наценки (phase2 §D) */
+    .ue-simple {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: var(--radius); padding: 14px 16px;
+    }
+    .ue-line {
+      display: flex; justify-content: space-between;
+      padding: 5px 0; border-top: 1px dashed var(--line);
+    }
+    .ue-line:first-child { border-top: none; }
+    .ue-cost, .ue-calc { margin-top: 10px; font-size: 15px; }
+    .ue-detail summary {
+      cursor: pointer; color: var(--accent);
+      font-weight: 600; margin-top: 8px;
+    }
+    .ue-detail p { font-size: 14px; color: #475569; margin: 8px 0; }
+    .markup-in {
+      width: 80px; padding: 5px 8px;
+      border: 1px solid #d1d5db; border-radius: 7px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Печать */
+    @media print {
+      body { background: white; max-width: none; padding: 12mm; }
+      .chart, .kpi, table, .segment-card, .ue-simple { box-shadow: none; }
+      .section-nav { position: static; box-shadow: none; backdrop-filter: none; }
+      .alert-info, .alert-warning, .alert-danger { background: white; }
+      h2 { page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Соевый соус</h1>
+  <div class="subtitle">Период: 01.12.2025 – 31.05.2026 (6.07 мес, 2 периода) · Обновлено: 24.06.2026 · Методология v1.5</div>
+</header>
+
+<!-- Липкая навигация по секциям отчёта -->
+<nav class="section-nav">
+  <a href="#kpi">Обзор</a><a href="#competition">Конкуренты</a>
+  <a href="#unit-econ">Юнит-экономика</a><a href="#voc">Покупатель</a>
+  <a href="#red-flags">Риски</a><a href="#deep-niches">Доп. ниши</a>
+</nav>
+
+<!-- 0. KPI-шапка: 6 карточек с ключевыми цифрами -->
+<div class="kpi-grid" id="kpi"><div class="kpi good"><div class="label">Оборот категории / мес</div><div class="value">9.6<span class="unit"> млн ₽</span></div><div class="sub">Ozon 5.4 + WB 4.1 млн</div></div>
+<div class="kpi warn"><div class="label">Концентрация топ-10</div><div class="value">62<span class="unit">%</span></div><div class="sub">Ozon 62% · WB 36%</div></div>
+<div class="kpi danger"><div class="label">Живые SKU</div><div class="value">15<span class="unit">%</span></div><div class="sub">Ozon 25% · WB 5%</div></div></div>
+
+<!-- 1a. Динамика периодов (опционально; пусто при single-period) -->
+<div id="section-dynamics"><h2>Динамика периодов</h2><div class="dynamics-grid"><div class="dynamics-block"><h3>Ozon</h3><table><thead><tr><th>Метрика</th><th>01.12.2025 – 28.02.2026</th><th>01.03.2026 – 31.05.2026</th><th class="num">Δ %</th></tr></thead><tbody><tr><td>Выручка категории, ₽/мес</td><td class="num">6 039 237 ₽</td><td class="num">5 415 354 ₽</td><td class="num delta-bad">-10.3%</td></tr><tr><td>SKU с продажами, шт</td><td class="num">188</td><td class="num">153</td><td class="num delta-bad">-18.6%</td></tr><tr><td>Концентрация топ-10, %</td><td class="num">65.5%</td><td class="num">62.2%</td><td class="num delta-good">-5.0%</td></tr><tr><td>Новичков в топ-30, шт</td><td class="num">0</td><td class="num">0</td><td class="num ">—</td></tr></tbody></table><p class="interpretation"><em>Ozon охлаждается: выручка категории за период упала на 10,3% (6,0 → 5,4 млн ₽/мес), число живых SKU сократилось на 18,6% (188 → 153). При этом медианная цена эталона выросла на 26% (756 → 953 ₽), а концентрация топ-10 чуть снизилась (65,5% → 62,2%) — слабые игроки вымываются, выручка перетекает к крупным. Это рынок зрелый и сжимающийся; заходить лобово рискованно.</em></p></div><div class="dynamics-block"><h3>Wildberries</h3><table><thead><tr><th>Метрика</th><th>01.12.2025 – 28.02.2026</th><th>01.03.2026 – 31.05.2026</th><th class="num">Δ %</th></tr></thead><tbody><tr><td>Выручка категории, ₽/мес</td><td class="num">3 214 086 ₽</td><td class="num">4 135 644 ₽</td><td class="num delta-good">+28.7%</td></tr><tr><td>SKU с продажами, шт</td><td class="num">480</td><td class="num">425</td><td class="num delta-bad">-11.5%</td></tr><tr><td>Концентрация топ-10, %</td><td class="num">44.4%</td><td class="num">35.8%</td><td class="num delta-good">-19.4%</td></tr><tr><td>Новичков в топ-30, шт</td><td class="num">0</td><td class="num">0</td><td class="num ">—</td></tr></tbody></table><p class="interpretation"><em>Wildberries разогревается: выручка категории выросла на 28,7% за период (3,2 → 4,1 млн ₽/мес). Медианная цена эталона стабильна (690 → 680 ₽), число живых SKU слегка просело (480 → 425), но концентрация топ-10 заметно упала (44,4% → 35,8%) — спрос растёт и распределяется шире, лидер не доминирует. Это самый удобный момент и площадка для входа новичка.</em></p></div></div></div>
+<div class="commentary" id="commentary-dynamics"></div>
+
+<!-- 2. Глубина рынка -->
+<h2>Глубина рынка</h2>
+<div id="section-depth"><table><thead><tr><th>Метрика</th><th class="num">Ozon</th><th class="num">WB</th></tr></thead><tbody>
+<tr><td>Кол-во SKU</td><td class="num">614</td><td class="num">9 216</td></tr>
+<tr><td>Живые SKU (с продажами)</td><td class="num">153</td><td class="num">425</td></tr>
+<tr><td>Доля живых SKU</td><td class="num">25</td><td class="num">5</td></tr>
+<tr><td>Выручка/мес, ₽</td><td class="num">5 415 354</td><td class="num">4 135 644</td></tr>
+<tr><td>Концентрация топ-10 %</td><td class="num">62</td><td class="num">36</td></tr>
+<tr><td>Концентрация топ-30 %</td><td class="num">84</td><td class="num">63</td></tr>
+</tbody></table></div>
+<div class="commentary" id="commentary-depth"></div>
+
+<!-- 2.5. Доли рынка: пироги по продавцам -->
+<h2>Доли рынка (топ-5 продавцов)</h2>
+<div id="section-seller-shares"><div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"><div class="chart-wrap"><div class="chart-title">Ozon: топ-5 продавцов на фоне рынка</div><div id="seller-share-ozon" class="chart"></div><p style="font-size:12px;color:#6b7280;margin:4px 0 0">Топ-5 продавцов = 54% выручки маркетплейса</p></div><script>Plotly.newPlot("seller-share-ozon",[{type:"pie",hole:0.55,labels:["Такемура", "Продуктовый.ком", "JCANDY", "Каминари", "HBS Shop", "Остальной рынок"],values:[914818.57, 713936.16, 527056.68, 502210.75, 262964.5, 2494367.34],textinfo:"percent",textposition:"auto",hovertemplate:"%{label}<br>%{value:,} ₽/мес<br>%{percent}<extra></extra>",marker:{colors:[null, null, null, null, null, "#e5e7eb"],line:{color:"#fff",width:2}}}],{margin:{t:10,b:60,l:10,r:10},showlegend:true,legend:{orientation:"h",y:-0.15,font:{size:11}}},{responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]});</script><div class="chart-wrap"><div class="chart-title">WB: топ-5 продавцов на фоне рынка</div><div id="seller-share-wb" class="chart"></div><p style="font-size:12px;color:#6b7280;margin:4px 0 0">Топ-5 продавцов = 35% выручки маркетплейса</p></div><script>Plotly.newPlot("seller-share-wb",[{type:"pie",hole:0.55,labels:["ИП Алиева З А", "ООО Вайлдберриз", "ООО Мистер Джемиус", "ООО ВТ Логистик", "ООО Мист Групп", "Остальной рынок"],values:[581968.73, 449290.23999999993, 196811.73, 126343.97, 97553.42, 2683675.91],textinfo:"percent",textposition:"auto",hovertemplate:"%{label}<br>%{value:,} ₽/мес<br>%{percent}<extra></extra>",marker:{colors:[null, null, null, null, null, "#e5e7eb"],line:{color:"#fff",width:2}}}],{margin:{t:10,b:60,l:10,r:10},showlegend:true,legend:{orientation:"h",y:-0.15,font:{size:11}}},{responsive:true,displaylogo:false,modeBarButtonsToRemove:["lasso2d","select2d"]});</script></div></div>
+<div class="commentary" id="commentary-shares"></div>
+
+<!-- 3. Фасовка: эталон и сегменты -->
+<h2>Фасовка: эталон и сегменты</h2>
+<div id="section-packaging"><p style="margin:4px 0 16px"><strong>Эталонная фасовка:</strong> <span class="badge info">1 л</span> — 3 SKU из топ-15, 44.8% выручки категории, медиана 953 ₽</p>
+<h3>Ozon</h3>
+<div class="segments-grid"><div class="segment-card best">
+  <div class="seg-label">1 л</div>
+  <div class="seg-stats">
+    <div class="kv"><span class="k">SKU</span><span class="v">88 / 24 живых</span></div>
+    <div class="kv"><span class="k">Продажи, шт</span><span class="v">19 219</span></div>
+    <div class="kv"><span class="k">Выручка</span><span class="v">6 146 665 ₽</span></div>
+    <div class="kv"><span class="k">Цена на витрине (медиана)</span><span class="v">951 ₽</span></div>
+    <div class="kv"><span class="k">Доля выручки</span><span class="v">42.2%</span></div>
+    
+  </div>
+  <div class="seg-badge">⭐ Эталон</div>
+</div><div class="segment-card">
+  <div class="seg-label">550 мл</div>
+  <div class="seg-stats">
+    <div class="kv"><span class="k">SKU</span><span class="v">15 / 6 живых</span></div>
+    <div class="kv"><span class="k">Продажи, шт</span><span class="v">8 529</span></div>
+    <div class="kv"><span class="k">Выручка</span><span class="v">2 412 496 ₽</span></div>
+    <div class="kv"><span class="k">Цена на витрине (медиана)</span><span class="v">514 ₽</span></div>
+    <div class="kv"><span class="k">Доля выручки</span><span class="v">16.6%</span></div>
+    
+  </div>
+  
+</div><div class="segment-card">
+  <div class="seg-label">500 мл</div>
+  <div class="seg-stats">
+    <div class="kv"><span class="k">SKU</span><span class="v">109 / 38 живых</span></div>
+    <div class="kv"><span class="k">Продажи, шт</span><span class="v">5 251</span></div>
+    <div class="kv"><span class="k">Выручка</span><span class="v">2 190 846 ₽</span></div>
+    <div class="kv"><span class="k">Цена на витрине (медиана)</span><span class="v">833 ₽</span></div>
+    <div class="kv"><span class="k">Доля выручки</span><span class="v">15.1%</span></div>
+    
+  </div>
+  
+</div></div>
+<h3>Wildberries</h3>
+<div class="segments-grid"><div class="segment-card best">
+  <div class="seg-label">1 л</div>
+  <div class="seg-stats">
+    <div class="kv"><span class="k">SKU</span><span class="v">1010 / 68 живых</span></div>
+    <div class="kv"><span class="k">Продажи, шт</span><span class="v">10 713</span></div>
+    <div class="kv"><span class="k">Выручка</span><span class="v">3 633 510 ₽</span></div>
+    <div class="kv"><span class="k">Цена на витрине (медиана)</span><span class="v">673 ₽</span></div>
+    <div class="kv"><span class="k">Доля выручки</span><span class="v">36.3%</span></div>
+    
+  </div>
+  <div class="seg-badge">⭐ Эталон</div>
+</div><div class="segment-card">
+  <div class="seg-label">150 мл</div>
+  <div class="seg-stats">
+    <div class="kv"><span class="k">SKU</span><span class="v">761 / 45 живых</span></div>
+    <div class="kv"><span class="k">Продажи, шт</span><span class="v">2 666</span></div>
+    <div class="kv"><span class="k">Выручка</span><span class="v">1 114 205 ₽</span></div>
+    <div class="kv"><span class="k">Цена на витрине (медиана)</span><span class="v">653 ₽</span></div>
+    <div class="kv"><span class="k">Доля выручки</span><span class="v">11.1%</span></div>
+    
+  </div>
+  
+</div><div class="segment-card">
+  <div class="seg-label">550 мл</div>
+  <div class="seg-stats">
+    <div class="kv"><span class="k">SKU</span><span class="v">120 / 15 живых</span></div>
+    <div class="kv"><span class="k">Продажи, шт</span><span class="v">3 409</span></div>
+    <div class="kv"><span class="k">Выручка</span><span class="v">959 736 ₽</span></div>
+    <div class="kv"><span class="k">Цена на витрине (медиана)</span><span class="v">432 ₽</span></div>
+    <div class="kv"><span class="k">Доля выручки</span><span class="v">9.6%</span></div>
+    
+  </div>
+  
+</div><div class="segment-card">
+  <div class="seg-label">250 мл</div>
+  <div class="seg-stats">
+    <div class="kv"><span class="k">SKU</span><span class="v">1086 / 61 живых</span></div>
+    <div class="kv"><span class="k">Продажи, шт</span><span class="v">7 635</span></div>
+    <div class="kv"><span class="k">Выручка</span><span class="v">921 738 ₽</span></div>
+    <div class="kv"><span class="k">Цена на витрине (медиана)</span><span class="v">529 ₽</span></div>
+    <div class="kv"><span class="k">Доля выручки</span><span class="v">9.2%</span></div>
+    
+  </div>
+  
+</div></div></div>
+<div class="commentary" id="commentary-packaging"></div>
+
+<!-- 4. Конкурентная среда -->
+<h2 id="competition">Конкурентная среда</h2>
+<div id="section-competition"><h3>Топ-5 Ozon</h3>
+<table><thead><tr><th>№</th><th class="no-sort">Фото</th><th>Название</th><th>Артикул</th><th>Бренд</th><th>Продавец</th><th class="num">Фасовка</th><th class="num">Цена на витрине</th><th class="num">Продажи, шт (период / /мес)</th><th class="num">Выручка (период / /мес) ₽</th><th class="num">Рейтинг</th><th class="num">Отзывы</th><th class="num">Возраст, дн</th></tr></thead><tbody><tr><td class="num">1</td><td><img class="thumb" src="https://ir.ozone.ru/s3/multimedia-1-2/7011446330.jpg" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.ozon.ru/context/detail/id/1557358836/" target="_blank" rel="noopener">Соус соевый 1л NEW</a></td><td><a href="https://www.ozon.ru/context/detail/id/1557358836/" target="_blank" rel="noopener">1557358836</a></td><td>TAKEMURA</td><td>Такемура</td><td class="num">—</td><td class="num">166 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">14 839 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">4 834 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">2 808 493 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">914 819 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">26 630</td><td class="num">751</td></tr>
+<tr><td class="num">2</td><td><img class="thumb" src="https://ir.ozone.ru/s3/multimedia-1-h/9979336889.jpg" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.ozon.ru/context/detail/id/843759656/" target="_blank" rel="noopener">Соевый соус Kikkoman натурального брожения 1 л, японский соус оригинал, для суши, роллов, рамена, терияки, премиум импорт Япония</a></td><td><a href="https://www.ozon.ru/context/detail/id/843759656/" target="_blank" rel="noopener">843759656</a></td><td>Kikkoman</td><td>JCANDY</td><td class="num">—</td><td class="num">1 243 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">1 118 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">364 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">1 618 064 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">527 057 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">10 273</td><td class="num">1222</td></tr>
+<tr><td class="num">3</td><td><img class="thumb" src="https://ir.ozone.ru/s3/multimedia-s/6722482600.jpg" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.ozon.ru/context/detail/id/1122475439/" target="_blank" rel="noopener">Соевый соус AMOY, 550 мл. Китай</a></td><td><a href="https://www.ozon.ru/context/detail/id/1122475439/" target="_blank" rel="noopener">1122475439</a></td><td>AMOY</td><td>Каминари</td><td class="num">—</td><td class="num">222 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">5 250 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">1 710 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">1 541 787 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">502 211 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">7 925</td><td class="num">820</td></tr>
+<tr><td class="num">4</td><td><img class="thumb" src="https://ir.ozone.ru/s3/multimedia-1-t/7473068309.jpg" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.ozon.ru/context/detail/id/1217447195/" target="_blank" rel="noopener">Соевый соус классический из желтых бобов без сахара натуральный Amoy Амой 1 литр Китай</a></td><td><a href="https://www.ozon.ru/context/detail/id/1217447195/" target="_blank" rel="noopener">1217447195</a></td><td>AMOY</td><td>Продуктовый.ком</td><td class="num">—</td><td class="num">472 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">1 629 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">531 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">822 179 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">267 811 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">4 826</td><td class="num">970</td></tr>
+<tr><td class="num">5</td><td><img class="thumb" src="https://ir.ozone.ru/s3/multimedia-1-m/9073136074.jpg" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.ozon.ru/context/detail/id/543154506/" target="_blank" rel="noopener">Особый японский соевый соус натурального брожения Юми-дзируси 1л</a></td><td><a href="https://www.ozon.ru/context/detail/id/543154506/" target="_blank" rel="noopener">543154506</a></td><td>YUGETA SYOUYU INC</td><td>HBS Shop</td><td class="num">—</td><td class="num">835 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">942 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">307 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">807 301 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">262 964 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">750</td><td class="num">1515</td></tr></tbody></table>
+<h3>Топ-5 Wildberries</h3>
+<table><thead><tr><th>№</th><th class="no-sort">Фото</th><th>Название</th><th>Артикул</th><th>Бренд</th><th>Продавец</th><th class="num">Фасовка</th><th class="num">Цена на витрине</th><th class="num">Продажи, шт (период / /мес)</th><th class="num">Выручка (период / /мес) ₽</th><th class="num">Рейтинг</th><th class="num">Отзывы</th><th class="num">Возраст, дн</th></tr></thead><tbody><tr><td class="num">1</td><td><img class="thumb" src="https://basket-14.wbbasket.ru/vol2095/part209577/209577481/images/c246x328/1.webp" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.wildberries.ru/catalog/209577481/detail.aspx" target="_blank" rel="noopener">Китайский соевый соус из жёлтых бобов AMOY, 1000мл</a></td><td><a href="https://www.wildberries.ru/catalog/209577481/detail.aspx" target="_blank" rel="noopener">209577481</a></td><td>AMOY</td><td>ИП Алиева З А</td><td class="num">—</td><td class="num">505 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">1 893 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">617 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">993 582 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">323 642 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">2 667</td><td class="num">832</td></tr>
+<tr><td class="num">2</td><td><img class="thumb" src="https://basket-04.wbbasket.ru/vol590/part59006/59006210/images/c246x328/1.webp" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.wildberries.ru/catalog/59006210/detail.aspx" target="_blank" rel="noopener">Китайский соевый соус из жёлтых бобов AMOY, 550мл</a></td><td><a href="https://www.wildberries.ru/catalog/59006210/detail.aspx" target="_blank" rel="noopener">59006210</a></td><td>AMOY</td><td>ИП Алиева З А</td><td class="num">—</td><td class="num">291 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">2 932 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">955 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">793 062 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">258 326 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">4 467</td><td class="num">1592</td></tr>
+<tr><td class="num">3</td><td><img class="thumb" src="https://basket-04.wbbasket.ru/vol473/part47323/47323770/images/c246x328/1.webp" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.wildberries.ru/catalog/47323770/detail.aspx" target="_blank" rel="noopener">Соус соевый низкокалорийный Терияки 330г</a></td><td><a href="https://www.wildberries.ru/catalog/47323770/detail.aspx" target="_blank" rel="noopener">47323770</a></td><td>Mr.Djemius ZERO</td><td>ООО Мистер Джемиус</td><td class="num">330 г</td><td class="num">299 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">1 805 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">588 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">604 212 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">196 812 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">4 234</td><td class="num">1661</td></tr>
+<tr><td class="num">4</td><td><img class="thumb" src="https://basket-12.wbbasket.ru/vol1836/part183612/183612553/images/c246x328/1.webp" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.wildberries.ru/catalog/183612553/detail.aspx" target="_blank" rel="noopener">Соевый соус, 290 мл</a></td><td><a href="https://www.wildberries.ru/catalog/183612553/detail.aspx" target="_blank" rel="noopener">183612553</a></td><td>Чим-Чим</td><td>ООО ВТ Логистик</td><td class="num">—</td><td class="num">182 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">2 123 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">692 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">387 876 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">126 344 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">2 514</td><td class="num">914</td></tr>
+<tr><td class="num">5</td><td><img class="thumb" src="https://basket-17.wbbasket.ru/vol2760/part276056/276056701/images/c246x328/1.webp" alt="" onerror="this.style.display='none'"></td><td><a href="https://www.wildberries.ru/catalog/276056701/detail.aspx" target="_blank" rel="noopener">Соевый соус Чили Сладкий Тайский, 1л</a></td><td><a href="https://www.wildberries.ru/catalog/276056701/detail.aspx" target="_blank" rel="noopener">276056701</a></td><td>SanBonsai</td><td>ООО Вайлдберриз</td><td class="num">—</td><td class="num">259 <span class="source-tag data" title="ДАННЫЕ: витрина (card_price), fallback Median price">[ДАННЫЕ]</span></td><td class="num">1 244 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Sales">[ДАННЫЕ]</span><br><small style="color:#6b7280">405 <span class="source-tag calc" title="РАСЧЁТ: Sales / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">329 510 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Revenue">[ДАННЫЕ]</span><br><small style="color:#6b7280">107 332 <span class="source-tag calc" title="РАСЧЁТ: Revenue / period_months">[РАСЧЁТ]</span>/мес</small></td><td class="num">5 <span class="source-tag data" title="ДАННЫЕ: MPSTATS Rating">[ДАННЫЕ]</span></td><td class="num">3 412</td><td class="num">535</td></tr></tbody></table>
+<h3>Новички в топе (возраст &lt; 180 дней)</h3></div>
+<div class="commentary" id="commentary-competition">На Ozon лидирует Takemura — литр за 166 ₽ (при медиане 953 ₽) и 26,6 тыс. отзывов, забирает ≈915 тыс. ₽/мес чистым демпингом; за ним премиум-импорт Kikkoman (1243 ₽) и крепкая китайская AMOY в обеих фасовках. На WB картина мягче: топ дробится между AMOY, бюджетными СТМ Wildberries (SanBonsai 148–154 ₽) и Mr.Djemius ZERO. Уязвимость лидеров — массовые жалобы на «разбавленный» вкус и расхождение состава с карточкой: даже у топов это бьёт по рейтингу. Из новичков выстреливают свежие WB-карточки (WADAKAN, Sen Soy Premium, появившиеся в конце 2025) — окно для входа под честным составом ещё открыто.</div>
+
+<!-- 5. Голос покупателя + портрет -->
+<h2 id="voc">Голос покупателя и портрет</h2>
+<div id="section-voc"><div class="alert alert-warning" style="margin:12px 0">Портрет покупателя и сегменты — <b>гипотеза по отзывам</b>, а не факт. Основано на 964 отзывах.</div>
+<section style="margin-bottom:24px"><h3>Голос рынка</h3><div style="display:flex;gap:24px;flex-wrap:wrap;"><div style="flex:1;min-width:320px"><h4>Боли</h4><h4>#1. Несоответствие состава и описания в карточке товара</h4><p style="margin:4px 0">Упоминаний: <strong>20 из 964 (2.1%)</strong></p>
+<h4>#2. Слабый жидкий вкус, низкое содержание белка, ощущение разбавленного</h4><p style="margin:4px 0">Упоминаний: <strong>15 из 964 (1.6%)</strong></p>
+<h4>#3. Отсутствие защитной упаковки, помятая или вскрытая бутылка</h4><p style="margin:4px 0">Упоминаний: <strong>10 из 964 (1.0%)</strong></p></div><div style="flex:1;min-width:320px"><h4>Хотелки</h4><h4>#1. Насыщенный густой вкус, натуральный состав</h4><p style="margin:4px 0">Упоминаний: <strong>45 из 964 (4.7%)</strong></p>
+<h4>#2. Выгодная цена за большой объём 1 литр</h4><p style="margin:4px 0">Упоминаний: <strong>20 из 964 (2.1%)</strong></p>
+<h4>#3. Постоянная покупка, доверие к бренду</h4><p style="margin:4px 0">Упоминаний: <strong>15 из 964 (1.6%)</strong></p></div></div><div style="background:#f9fafb;border:1px solid #e5e7eb;padding:16px;border-radius:6px;margin-top:16px"><h4>Портрет покупателя <span class="badge warn">ГИПОТЕЗА</span></h4><p>Домашний кулинар 30–55 лет, регулярно готовит азиатскую кухню (роллы, маринады, вок, рыбу) и берёт литровую бутылку на семью про запас. Разбирается в продукте: смотрит на содержание белка и натуральность брожения, болезненно реагирует на расхождение состава с карточкой и на «разбавленный» вкус.</p></div></section>
+<div class="voc-grid"><div class="voc-tile"><h4>🎯 Кому товар</h4><ul><li>домашний кулинар азиатской кухни (роллы, вок, маринады)</li><li>покупатель, следящий за составом и здоровьем (низкая соль, для диабетиков, без сахзама)</li><li>семейный закупщик литровой фасовки про запас</li></ul></div><div class="voc-tile"><h4>🛠 Какую задачу решает</h4><ul><li>приготовить роллы и суши дома с «ресторанным» вкусом</li><li>замариновать мясо, рыбу и курицу перед запеканием</li><li>заправить салаты и готовые блюда, добавить умами</li><li>готовить супы и вок без избыточной соли</li><li>иметь дома большой запас базового соуса по выгодной цене за литр</li></ul></div><div class="voc-tile"><h4>💡 Неочевидные сценарии</h4><ul><li>как «полезная» альтернатива соли для диабетиков и следящих за давлением</li><li>запекание рыбы в духовке под соевой корочкой</li><li>ароматизация и подкрашивание готовых блюд до тёмного цвета</li></ul></div></div></div>
+<div class="commentary" id="commentary-voc"></div>
+
+<!-- 7. Юнит-экономика -->
+<h2 id="unit-econ">Юнит-экономика</h2>
+<div id="section-unit-economics"><div class="alert alert-info" style="margin:0 0 12px">цена — витрина последнего периода (снимок дня)</div>
+<div style="display:flex;gap:24px;flex-wrap:wrap;">
+<div style="flex:1;min-width:300px"><h3>Ozon · эталон 1 л</h3><p style="font-size:12px;color:#6b7280;margin:0 0 8px">На основе фактических данных (Seller24 или медиана конкурентов из MPSTATS)</p><div class="ue-simple"><div class="ue-line"><span>Цена на витрине</span><b>953 ₽</b></div><div class="ue-line"><span>Заберёт площадка</span><b>411 ₽</b></div><div class="ue-line"><span>На счёт придёт</span><b>542 ₽</b></div></div><div class="ue-calc" data-payout="542">Наценка <input type="number" class="markup-in" min="0" max="100000" value="50" oninput="recalcMarkup(this)"> % → себес ≤ <b class="cost-out">361</b> ₽</div><details class="ue-detail"><summary>Как считается на самом деле</summary><p>Ставишь <b>цену продажи 1 361 ₽</b> (витрина 953 = цена продажи − скидка площадки 30%).</p><p>Площадка удержит свои 60% с цены продажи = <b>820 ₽</b> (комиссия 35% + логистика 17% + реклама 8% + возвраты 0%).</p><p>На счёт придёт <b>542 ₽</b>. При себестоимости 361 ₽ — наценка 50%.</p></details></div>
+<div style="flex:1;min-width:300px"><h3>Wildberries · эталон 1 л</h3><p style="font-size:12px;color:#6b7280;margin:0 0 8px">На основе фактических данных (Seller24 или медиана конкурентов из MPSTATS)</p><div class="ue-simple"><div class="ue-line"><span>Цена на витрине</span><b>680 ₽</b></div><div class="ue-line"><span>Заберёт площадка</span><b>239 ₽</b></div><div class="ue-line"><span>На счёт придёт</span><b>441 ₽</b></div></div><div class="ue-calc" data-payout="441">Наценка <input type="number" class="markup-in" min="0" max="100000" value="50" oninput="recalcMarkup(this)"> % → себес ≤ <b class="cost-out">294</b> ₽</div><details class="ue-detail"><summary>Как считается на самом деле</summary><p>Ставишь <b>цену продажи 850 ₽</b> (витрина 680 = цена продажи − скидка площадки 20%).</p><p>Площадка удержит свои 48% с цены продажи = <b>409 ₽</b> (комиссия 22% + логистика 23% + реклама 3% + возвраты 0%).</p><p>На счёт придёт <b>441 ₽</b>. При себестоимости 294 ₽ — наценка 50%.</p></details></div>
+</div>
+<script>
+function recalcMarkup(el){
+  var box = el.closest('.ue-calc');
+  var R = parseFloat(box.getAttribute('data-payout'))||0;
+  var n = parseFloat(el.value)||0;
+  var c = R/(1+n/100);
+  box.querySelector('.cost-out').textContent = Math.round(c);
+}
+</script></div>
+<div class="commentary" id="commentary-unit-econ">Экономика тонкая. На Ozon при витрине 953 ₽ скидка площадки 30% поднимает цену продажи до 1361 ₽, но удержания съедают 60,2% (комиссия 35,1%, логистика 16,9%, реклама 8,1%): на счёт приходит лишь 542 ₽, и под наценку 50% целевой себес сжимается до 361 ₽. На WB мягче: удержания 48,1% (логистика 23% — главная статья), выплата 441 ₽ при витрине 680 ₽, целевой себес ≈294 ₽. Для импортного литрового соуса оба порога жёсткие — уложиться реально лишь при собственном производстве или прямом импорте без посредника. Главные риски P&amp;L: высокая логистика (тяжёлая стеклянная бутылка) и реклама на Ozon; на WB экономика чуть устойчивее, что усиливает выбор площадки.</div>
+
+<!-- 7.5. TL;DR с вердиктом (перед рекомендациями) -->
+<h2>Итоговая оценка</h2>
+<div class="tldr warning">
+  <div class="verdict">Заходить с условиями</div>
+  <div><div class="alert alert-info" style="margin-bottom:12px">Рынок растёт на 28.7% за наблюдаемый период</div><p>Категория живая, но поляризованная: Wildberries растёт (+28,7% выручки за наблюдаемый период, ≈4,1 млн ₽/мес), Ozon — проседает (−10,3%, ≈5,4 млн ₽/мес). Совокупно рынок ≈9,5 млн ₽/мес. На Ozon концентрация высокая (топ-10 = 62%), лидирует Takemura за счёт демпинга — литр за 166 ₽ при медиане 953 ₽; на WB рынок раздроблён (топ-10 = 36%) и заметно дружелюбнее к новичку. Спрос держится на литровой фасовке (≈40–45% выручки эталона). Экономика тонкая: целевой себес выходит ≈361 ₽ (Ozon) и ≈294 ₽ (WB) при удержаниях площадок 60% и 48% — для импортного литра это жёстко. Реалистичный вход — WB, в нишу «честный состав + насыщенный вкус», а не лобовая конкуренция по цене с Takemura/AMOY.</p></div>
+</div>
+
+<!-- 8. Красные флаги -->
+<h2 id="red-flags">Красные флаги</h2>
+<div id="section-recommendations"></div>
+
+<!-- BLOCK2-DEEP-START -->
+<h2 id="deep-niches">Доп. анализ: ниши и состав (блок 2)</h2>
+<div id="section-deep-niches">
+<div class="alert alert-info" style="margin-bottom:18px">
+<b>Как читать.</b> Сегменты найдены по <b>маркерам в названиях</b> — это «явно помеченные» позиции,
+реальная доля каждого типа может быть выше. Доли считаны от выручки <b>живых (релевантных) SKU своей площадки</b>
+за последний период (март–май 2026), <b>Ozon и WB раздельно</b>. Ozon — узкая ниша «Соевый соус»;
+WB — широкий предмет «Соусы», поэтому знаменатель на WB шире и доли там ниже.
+Тональность отзывов — по выборке <b>903 релевантных отзыва</b>
+(всего 4 SKU: Ozon 3 + WB 1), помечена <span class="source-tag hyp">гипотеза</span>.
+</div>
+
+<h3>1. Вьетнамские соусы <span class="source-tag data">данные</span><span class="source-tag calc">расчёт</span></h3>
+<div class="segments-grid">
+<div class="segment-card best">
+  <div class="seg-name">Ozon · ниша «Соевый соус»</div>
+  <div class="seg-metric"><span class="mk">Позиций (живых)</span><span class="mv">7 (1.14%)</span></div>
+  <div class="seg-metric"><span class="mk">Выручка / доля</span><span class="mv">34 410 ₽ · 0.21%</span></div>
+  <div class="seg-metric"><span class="mk">Продано, шт</span><span class="mv">54</span></div>
+  <div class="seg-metric"><span class="mk">Динамика выручки</span><span class="mv delta-good">5 212 → 34 410 ₽ ▲ +560%</span></div>
+  <div class="seg-metric" style="margin-top:6px;border-top:1px dashed #eee;padding-top:6px"><span class="mk">Лидер</span><span class="mv" style="font-weight:500;text-align:right;max-width:60%">Вьетнамский ароматный соевый соус ЧИН-СУ с чесноком и </span></div>
+</div>
+<div class="segment-card best">
+  <div class="seg-name">WB · предмет «Соусы»</div>
+  <div class="seg-metric"><span class="mk">Позиций (живых)</span><span class="mv">46 (0.5%)</span></div>
+  <div class="seg-metric"><span class="mk">Выручка / доля</span><span class="mv">3 679 ₽ · 0.03%</span></div>
+  <div class="seg-metric"><span class="mk">Продано, шт</span><span class="mv">10</span></div>
+  <div class="seg-metric"><span class="mk">Динамика выручки</span><span class="mv delta-bad">12 841 → 3 679 ₽ ▼ -71%</span></div>
+  <div class="seg-metric" style="margin-top:6px;border-top:1px dashed #eee;padding-top:6px"><span class="mk">Лидер</span><span class="mv" style="font-weight:500;text-align:right;max-width:60%">Соус соевый с чесноком и перцем, Вьетнам, 330 мл.</span></div>
+</div>
+</div>
+<div class="commentary"><p>Вьетнамские формально растут на Ozon (5 212→34 410 ₽ <span class="source-tag data">данные</span>), но это иллюзия: ~весь объём — один SKU «ЧИН-СУ с чесноком и перцем» (54 шт), а это ароматизированный соус, а не классическая соя. Доля сегмента 0.21% выручки на Ozon и 0.03% на WB <span class="source-tag data">данные</span>, на WB 46 SKU — мёртвые карточки. Это не точка роста, а единичный продукт-бренд внутри ниши.</p></div>
+
+<h3>2. Концентраты <span class="source-tag data">данные</span><span class="source-tag calc">расчёт</span></h3>
+<div class="segments-grid">
+<div class="segment-card best">
+  <div class="seg-name">Ozon · ниша «Соевый соус»</div>
+  <div class="seg-metric"><span class="mk">Позиций (живых)</span><span class="mv">5 (0.81%)</span></div>
+  <div class="seg-metric"><span class="mk">Выручка / доля</span><span class="mv">154 897 ₽ · 0.93%</span></div>
+  <div class="seg-metric"><span class="mk">Продано, шт</span><span class="mv">41</span></div>
+  <div class="seg-metric"><span class="mk">Динамика выручки</span><span class="mv delta-bad">254 255 → 154 897 ₽ ▼ -39%</span></div>
+  <div class="seg-metric" style="margin-top:6px;border-top:1px dashed #eee;padding-top:6px"><span class="mk">Лидер</span><span class="mv" style="font-weight:500;text-align:right;max-width:60%">Соевый соус Концентрат, Китай, Padam, 18 л</span></div>
+</div>
+<div class="segment-card">
+  <div class="seg-name">WB · предмет «Соусы»</div>
+  <div class="seg-metric"><span class="mk">Позиций (живых)</span><span class="mv">4 (0.04%)</span></div>
+  <div class="seg-metric"><span class="mk">Выручка / доля</span><span class="mv">0 ₽ · 0.0%</span></div>
+  <div class="seg-metric"><span class="mk">Продано, шт</span><span class="mv">0</span></div>
+  <div class="seg-metric"><span class="mk">Динамика выручки</span><span class="mv delta-bad">1 237 → 0 ₽ ▼ -100%</span></div>
+  
+</div>
+</div>
+<div class="commentary"><p>Концентраты — маргинальная B2B/HoReCa-ниша. На Ozon объём держат 2 промышленных SKU PADAM (18 л, Китай), но сегмент падает (254 255→154 897 ₽ <span class="source-tag data">данные</span>), доля 0.93% выручки, всего 41 шт за период. На WB концентраты практически без продаж. Формат оптовый, розничный спрос отсутствует — заходить в розницу здесь нет смысла.</p></div>
+
+<h3>3. Низкосолевые (явные маркеры соли) <span class="source-tag data">данные</span><span class="source-tag calc">расчёт</span></h3>
+<div class="segments-grid">
+<div class="segment-card best">
+  <div class="seg-name">Ozon · ниша «Соевый соус»</div>
+  <div class="seg-metric"><span class="mk">Позиций (живых)</span><span class="mv">10 (1.63%)</span></div>
+  <div class="seg-metric"><span class="mk">Выручка / доля</span><span class="mv">196 066 ₽ · 1.18%</span></div>
+  <div class="seg-metric"><span class="mk">Продано, шт</span><span class="mv">356</span></div>
+  <div class="seg-metric"><span class="mk">Динамика выручки</span><span class="mv delta-good">174 700 → 196 066 ₽ ▲ +12%</span></div>
+  <div class="seg-metric" style="margin-top:6px;border-top:1px dashed #eee;padding-top:6px"><span class="mk">Лидер</span><span class="mv" style="font-weight:500;text-align:right;max-width:60%">Соевый соус натуральный с пониженным содержанием соли </span></div>
+</div>
+<div class="segment-card best">
+  <div class="seg-name">WB · предмет «Соусы»</div>
+  <div class="seg-metric"><span class="mk">Позиций (живых)</span><span class="mv">71 (0.77%)</span></div>
+  <div class="seg-metric"><span class="mk">Выручка / доля</span><span class="mv">33 849 ₽ · 0.27%</span></div>
+  <div class="seg-metric"><span class="mk">Продано, шт</span><span class="mv">85</span></div>
+  <div class="seg-metric"><span class="mk">Динамика выручки</span><span class="mv delta-bad">39 571 → 33 849 ₽ ▼ -14%</span></div>
+  <div class="seg-metric" style="margin-top:6px;border-top:1px dashed #eee;padding-top:6px"><span class="mk">Лидер</span><span class="mv" style="font-weight:500;text-align:right;max-width:60%">Соевый соус натуральный с пониженным содержанием соли </span></div>
+</div>
+</div>
+<div class="commentary"><p>Низкосолевой — единственный из трёх сегментов с ростом на Ozon (174 700→196 066 ₽, 356 шт <span class="source-tag data">данные</span>) и самой высокой долей (1.18% выручки). Но рост на 90%+ обеспечен одним SKU «натуральный с пониженным содержанием соли Япония» (177 489 ₽, 342 шт) — премиальный Kikkoman почти не продаётся. В отзывах явный запрос на меньше соли редкий (3 из 62) <span class="source-tag data">данные</span>. Спрос больше про «натуральный/японский», чем про саму low-salt-механику — это позиционирование одного удачного товара, а не самостоятельный тренд.</p></div>
+
+<h3>4. Состав и Е-добавки в отзывах <span class="source-tag hyp">гипотеза</span></h3>
+<p style="font-size:13px;color:#6b7280;margin:4px 0 8px">Найдено 37 упоминаний состава/добавок из 903 отзывов (4.1%). Разнесено Opus-аналитиком по тональности:</p>
+<table>
+<thead><tr><th class="no-sort">Корзина упоминаний состава</th><th class="num">Отзывов</th><th class="num">% от 903</th></tr></thead>
+<tbody>
+<tr><td>Беспокойство: Е-добавки / химия / глутамат / краситель</td><td class="num">11</td><td class="num">1.2%</td></tr>
+<tr><td>«Натуральный / без добавок» как плюс при выборе</td><td class="num">11</td><td class="num">1.2%</td></tr>
+<tr><td>Жалоба «состав в карточке ≠ этикетке»</td><td class="num">9</td><td class="num">1.0%</td></tr>
+<tr><td>Прочие упоминания состава</td><td class="num">6</td><td class="num">0.7%</td></tr>
+</tbody></table>
+<div class="commentary"><p>Беспокойство по составу есть, но оно нишевое: про Е-добавки/химию/глутамат/сахзам с тревогой пишут 11 из 903 отзывов — это <span class="source-tag calc">расчёт</span> 1.2% всех релевантных отзывов. При этом «натуральный состав / без добавок / без химии» названо плюсом при выборе тоже в 11 отзывах <span class="source-tag data">данные</span> — то есть тема состава работает в обе стороны и для части покупателей это активный критерий выбора. Самая конкретная боль — расхождение «состав в карточке ≠ этикетка» (9 отзывов <span class="source-tag data">данные</span>): именно эти отзывы дают возвраты и оценку «1 звезда за введение в заблуждение». <span class="source-tag hyp">гипотеза</span> выборка узкая (отзывы лишь по 4 SKU), но сигнал однозначный: на выбор сильнее влияет честность карточки, чем сам факт наличия Е-добавок.</p></div>
+<div class="commentary"><p>Состав влияет на выбор умеренно и двусторонне: 11 отзывов хвалят натуральность как плюс, 11 тревожатся про Е-добавки <span class="source-tag data">данные</span>. Решающий фактор — не Е-добавки сами по себе, а расхождение карточки и этикетки (9 отзывов, возвраты и единицы <span class="source-tag data">данные</span>). Точка роста — честная карточка с полным составом и акцентом «натуральное брожение / без красителя», это снимает главную причину негатива.</p></div>
+
+<h3>5. Солёность и спрос на низкосолевой <span class="source-tag hyp">гипотеза</span></h3>
+<p style="font-size:13px;color:#6b7280;margin:4px 0 8px">Найдено 62 упоминаний соли из 903 отзывов (6.87%):</p>
+<table>
+<thead><tr><th class="no-sort">Восприятие солёности</th><th class="num">Отзывов</th><th class="num">% от 903</th></tr></thead>
+<tbody>
+<tr><td>Слишком солёный / пересол</td><td class="num">14</td><td class="num">1.6%</td></tr>
+<tr><td>Хотят меньше соли / разводят водой</td><td class="num">3</td><td class="num">0.3%</td></tr>
+<tr><td>Хвалят «в меру солёный»</td><td class="num">20</td><td class="num">2.2%</td></tr>
+<tr><td>Нейтрально-дескриптивные</td><td class="num">25</td><td class="num">2.8%</td></tr>
+</tbody></table>
+<div class="commentary"><p>Латентный спрос на низкосолевой есть, но слабый. «Слишком солёный / пересол» как претензию формулируют 14 из 62 «соляных» отзывов <span class="source-tag data">данные</span>, ещё 3 явно хотят меньше соли — но решают это разведением водой, а не поиском малосолёной версии <span class="source-tag data">данные</span>. Перевешивает позитив: 20 отзывов хвалят «в меру солёный / сбалансированный» <span class="source-tag data">данные</span>, то есть для большинства текущая солёность — норма или даже достоинство. <span class="source-tag hyp">гипотеза</span> выраженного запроса «дайте версию с пониженной солью» в отзывах почти нет (3 случая) — спрос на low-salt скорее здоровье-мотивированный, чем вкусовой, и в отзывах проявляется маргинально.</p></div>
+
+<h3 style="margin-top:32px">Итог по блоку 2</h3>
+<div class="commentary"><p>Все три сегмента — узкие ниши без выраженной точки роста для розничного входа. Вьетнам и концентрат — это по сути по одному-два живых SKU (бренд-история и B2B-опт соответственно), масштабируемого розничного спроса нет. Низкосолевой выглядит лучше всех (рост, максимальная доля), но это успех конкретного товара «натуральный японский с пониженной солью», а не отдельного устойчивого тренда — запрос «меньше соли» в отзывах маргинален (3 из 62). Реальный рычаг лежит не в сегментах, а в качестве карточки: главный драйвер негатива — несоответствие заявленного состава этикетке, и честное позиционирование «натуральный, без добавок» закрывает и беспокойство по составу, и часть мотивации low-salt-покупателя.</p></div>
+</div>
+<!-- BLOCK2-DEEP-END -->
+
+<!-- 9. Источники -->
+<footer class="footer">
+  <h3>Источники данных и версия методологии</h3>
+  <div><ul>
+<li><strong>Продажи Ozon</strong> (2 файла, периоды: 2025-12-01..2026-02-28; 2026-03-01..2026-05-31)<br><code>Ozon_-_Ниши_Соевый_соус_-_Отчет_по_товарам_01.03.2026-31.05.2026._(24.06.2026).csv</code><br><code>Ozon_-_Ниши_Соевый_соус_-_Отчет_по_товарам_01.12.2025-28.02.2026._(24.06.2026).csv</code></li>
+<li><strong>Продажи WB</strong> (2 файла, периоды: 2025-12-01..2026-02-28; 2026-03-01..2026-05-31)<br><code>Wildberries - Предметы - Соусы - Отчет по товарам 01.03.2026-31.05.2026. (24.06.2026).csv</code><br><code>Wildberries - Предметы - Соусы - Отчет по товарам 01.12.2025-28.02.2026. (24.06.2026).csv</code></li>
+<li><strong>Финансы Ozon (Seller24, парсинг LLM)</strong> (1 файл)<br><code>ozon_fin.xlsx</code></li>
+<li><strong>Финансы WB (Seller24, парсинг LLM)</strong> (1 файл)<br><code>wb_fin.xlsx</code></li>
+<li><strong>Отзывы Ozon</strong> (3 файла)<br><code>Отзывы артикула 1170955749.csv</code><br><code>Отзывы артикула 448325793.csv</code><br><code>Отзывы артикула 843759656.csv</code></li>
+<li><strong>Отзывы WB</strong> (1 файл)<br><code>Отзывы и ответы артикула 209577481.csv</code></li>
+</ul><p>Методология: <code>_shared/knowledge/method.md</code> v1.5</p></div>
+</footer>
+
+<script>
+// Пересчёт размеров Plotly-графиков после финальной раскладки (grid/flex).
+// Без этого inline Plotly.newPlot мог отмерить ширину до того, как CSS-grid
+// разложил карточки, и SVG оказывался шире карточки.
+window.addEventListener("load", () => {
+  if (typeof Plotly === "undefined") return;
+  document.querySelectorAll(".chart").forEach(el => {
+    if (el.querySelector(".js-plotly-plot, .plotly")) {
+      try { Plotly.Plots.resize(el); } catch (e) { /* no-op */ }
+    }
+  });
+});
+
+// JS-сортировка таблиц при клике на th + визуальный индикатор (▲/▼/⇅).
+document.querySelectorAll("table").forEach(table => {
+  const headers = table.querySelectorAll("th");
+  headers.forEach((th, idx) => {
+    if (th.classList.contains("no-sort")) return;
+    let asc = true;
+    th.addEventListener("click", () => {
+      const rows = Array.from(table.querySelectorAll("tbody tr"));
+      rows.sort((a, b) => {
+        const aText = a.children[idx] ? a.children[idx].textContent.trim() : "";
+        const bText = b.children[idx] ? b.children[idx].textContent.trim() : "";
+        const aNum = parseFloat(aText.replace(/[^\d.,-]/g, "").replace(",", "."));
+        const bNum = parseFloat(bText.replace(/[^\d.,-]/g, "").replace(",", "."));
+        const bothNum = !isNaN(aNum) && !isNaN(bNum);
+        const cmp = bothNum ? (aNum - bNum) : aText.localeCompare(bText, "ru");
+        return asc ? cmp : -cmp;
+      });
+      const tbody = table.querySelector("tbody");
+      rows.forEach(r => tbody.appendChild(r));
+      headers.forEach(h => h.classList.remove("sort-asc", "sort-desc"));
+      th.classList.add(asc ? "sort-asc" : "sort-desc");
+      asc = !asc;
+    });
+  });
+});
+</script>
+
+</body>
+</html>
